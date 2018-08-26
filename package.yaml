@@ -1,5 +1,6 @@
 name: kids-ide
 version: 0.1.0.0
+github: snoyberg/kids-haskell-ide
 
 dependencies:
 - base
