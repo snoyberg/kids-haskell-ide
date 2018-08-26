@@ -1,1 +1,4 @@
 kids-ide.cabal
+*#
+.stack-work/
+*~
