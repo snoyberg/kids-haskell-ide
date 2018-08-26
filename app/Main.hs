@@ -31,6 +31,11 @@ data App = App
   , appSnapshot :: !String
   }
 
+setResult :: App -> Text -> STM ()
+setResult app text = do
+  Result count _ <- readTVar $ appResult app
+  writeTVar (appResult app) $! Result (count + 1) text
+
 mkYesod "App" [parseRoutes|
 / HomeR GET
 /static/style.css StyleR GET
@@ -90,9 +95,7 @@ builder app = runSimpleApp $ withSystemTempFile "kids-coding.hs" $ \fp h -> do
           (if ec == ExitSuccess then mempty else "It didn't work, sorry :(\n") <>
           display (decodeUtf8With lenientDecode (BL.toStrict out)) <>
           (if BL.null err then mempty else "\nError messages:\n" <> display (decodeUtf8With lenientDecode (BL.toStrict err)))
-    atomically $ do
-      Result count _ <- readTVar $ appResult app
-      writeTVar (appResult app) $! Result (count + 1) text
+    atomically $ setResult app text
 
 data Opts = Opts
   { optsPort :: !(Maybe Int)
@@ -124,8 +127,14 @@ main = do
         , appResult = result
         , appSnapshot = optsSnapshot opts
         }
+      builder' = do
+        eres <- tryAny $ builder app
+        atomically $ setResult app $
+          case eres of
+            Left e -> "Code builder crashed, sorry!\n\n" <> fromString (show e)
+            Right void -> absurd void
 
-  race_ (builder app) $
+  concurrently_ builder' $
     case optsPort opts of
       Just port -> warp port app
       Nothing -> toWaiApp app >>= run
