@@ -51,7 +51,8 @@ title :: Text
 title = "Kids Coding Haskell IDE"
 
 getHomeR :: Handler Html
-getHomeR =
+getHomeR = do
+  app <- getYesod
   $(hamletFile "template/home.hamlet") <$> getUrlRenderParams
 
 getStyleR :: Handler Css
