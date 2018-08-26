@@ -12,6 +12,7 @@ dependencies:
 - rio
 - wai-handler-launch
 - shakespeare
+- optparse-simple
 
 executables:
   kids-ide:

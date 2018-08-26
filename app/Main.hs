@@ -20,12 +20,15 @@ import Data.Aeson (toEncoding, fromEncoding, Value (String))
 import Text.Hamlet (hamletFile)
 import Text.Lucius (Css, luciusFile)
 import Text.Julius (Javascript, juliusFile)
+import Options.Applicative.Simple
+import qualified Paths_kids_ide
 
 data Result = Result !Word !Text
 
 data App = App
   { appCode :: !(TMVar ByteString)
   , appResult :: !(TVar Result)
+  , appSnapshot :: !String
   }
 
 mkYesod "App" [parseRoutes|
@@ -78,7 +81,11 @@ builder app = runSimpleApp $ withSystemTempFile "kids-coding.hs" $ \fp h -> do
   forever $ do
     code <- atomically $ takeTMVar $ appCode app
     writeFileBinary fp code
-    (ec, out, err) <- withWorkingDir (takeDirectory fp) $ proc "stack" ["--resolver", "ghc-8.4.3", "runghc", fp] readProcess
+    (ec, out, err) <- withWorkingDir (takeDirectory fp)
+      $ proc
+          "stack"
+          ["--resolver", appSnapshot app, "runghc", fp]
+          readProcess
     let text = utf8BuilderToText $
           (if ec == ExitSuccess then mempty else "It didn't work, sorry :(\n") <>
           display (decodeUtf8With lenientDecode (BL.toStrict out)) <>
@@ -87,13 +94,38 @@ builder app = runSimpleApp $ withSystemTempFile "kids-coding.hs" $ \fp h -> do
       Result count _ <- readTVar $ appResult app
       writeTVar (appResult app) $! Result (count + 1) text
 
+data Opts = Opts
+  { optsPort :: !(Maybe Int)
+  , optsSnapshot :: !String
+  }
+
+parseOpts :: IO (Opts, ())
+parseOpts =
+  simpleOptions
+    $(simpleVersion Paths_kids_ide.version)
+    "Kids IDE"
+    "Provide a minimalistic environment for kids to learn programming with Haskell"
+    parser
+    empty
+  where
+    parser = Opts
+      <$> optional
+            (option auto
+              (long "port" <> metavar "PORT" <> help "Set a port, disabling the auto-launch feature"))
+      <*> strOption (long "snapshot" <> metavar "VERSION" <> help "GHC version" <> value "ghc-8.4.3")
+
 main :: IO ()
 main = do
+  (opts, ()) <- parseOpts
   code <- newEmptyTMVarIO
   result <- newTVarIO $ Result 0 "Haven't run any code yet, get started!"
   let app = App
         { appCode = code
         , appResult = result
+        , appSnapshot = optsSnapshot opts
         }
 
-  race_ (builder app) $ toWaiApp app >>= run
+  race_ (builder app) $
+    case optsPort opts of
+      Just port -> warp port app
+      Nothing -> toWaiApp app >>= run
