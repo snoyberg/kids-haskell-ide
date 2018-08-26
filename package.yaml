@@ -1,0 +1,18 @@
+name: kids-ide
+version: 0.1.0.0
+
+dependencies:
+- base
+- aeson
+- wai-extra
+- text
+- yesod-eventsource
+- yesod-core
+- conduit
+- rio
+- wai-handler-launch
+
+executables:
+  kids-ide:
+    source-dirs: app/
+    main: Main.hs
