@@ -1,0 +1,15 @@
+var cm = CodeMirror.fromTextArea(document.getElementById("editor"),
+      { autofocus: true
+      , mode: "haskell"
+      }),
+    submit = function() {
+               fetch("@{SubmitR}", {method: "PUT", body: cm.getValue()})
+             },
+    result = document.getElementById("result")
+    ;
+cm.on('change', submit);
+submit();
+
+new EventSource("@{ResultR}").onmessage = function(e) {
+  result.innerText = JSON.parse(e.data);
+};
