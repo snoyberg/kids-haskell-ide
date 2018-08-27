@@ -35,6 +35,10 @@ html, body {
   flex: 1;
 }
 
+#editor-wrapper, #result.success {
+  font-size: 18pt;
+}
+
 #result {
   background: #f8f8f8;
   margin: 0;

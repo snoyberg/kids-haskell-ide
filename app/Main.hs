@@ -23,7 +23,7 @@ import Text.Julius (Javascript, juliusFile)
 import Options.Applicative.Simple
 import qualified Paths_kids_ide
 
-data Result = Result !Word !Text
+data Result = Result !Word !Text !Bool
 
 data App = App
   { appCode :: !(TMVar ByteString)
@@ -31,10 +31,10 @@ data App = App
   , appSnapshot :: !String
   }
 
-setResult :: App -> Text -> STM ()
-setResult app text = do
-  Result count _ <- readTVar $ appResult app
-  writeTVar (appResult app) $! Result (count + 1) text
+setResult :: App -> Text -> Bool -> STM ()
+setResult app text isSuccess = do
+  Result count _ _ <- readTVar $ appResult app
+  writeTVar (appResult app) $! Result (count + 1) text isSuccess
 
 mkYesod "App" [parseRoutes|
 / HomeR GET
@@ -75,11 +75,15 @@ getResultR :: Handler TypedContent
 getResultR = do
   app <- getYesod
   ioToRepEventSource Nothing $ \_ mlastCount -> do
-    Result count text <- atomically $ do
-      res@(Result count _) <- readTVar $ appResult app
+    Result count text isSuccess <- atomically $ do
+      res@(Result count _ _) <- readTVar $ appResult app
       for_ mlastCount $ \lastCount -> checkSTM $ count /= lastCount
       pure res
-    pure ([ServerEvent Nothing Nothing [fromEncoding $ toEncoding $ String text]], Just count)
+    let obj = object
+          [ "text" .= text
+          , "success" .= isSuccess
+          ]
+    pure ([ServerEvent Nothing Nothing [fromEncoding $ toEncoding obj]], Just count)
 
 builder :: App -> IO a
 builder app = runSimpleApp $ withSystemTempFile "kids-coding.hs" $ \fp h -> do
@@ -96,7 +100,7 @@ builder app = runSimpleApp $ withSystemTempFile "kids-coding.hs" $ \fp h -> do
           (if ec == ExitSuccess then mempty else "It didn't work, sorry :(\n") <>
           display (decodeUtf8With lenientDecode (BL.toStrict out)) <>
           (if BL.null err then mempty else "\nError messages:\n" <> display (decodeUtf8With lenientDecode (BL.toStrict err)))
-    atomically $ setResult app text
+    atomically $ setResult app text (ec == ExitSuccess)
 
 data Opts = Opts
   { optsPort :: !(Maybe Int)
@@ -122,7 +126,7 @@ main :: IO ()
 main = do
   (opts, ()) <- parseOpts
   code <- newEmptyTMVarIO
-  result <- newTVarIO $ Result 0 "Haven't run any code yet, get started!"
+  result <- newTVarIO $ Result 0 "Haven't run any code yet, get started!" False
   let app = App
         { appCode = code
         , appResult = result
@@ -130,12 +134,13 @@ main = do
         }
       builder' = do
         eres <- tryAny $ builder app
-        atomically $ setResult app $
-          case eres of
+        atomically $ setResult app
+          (case eres of
             Left e -> "Code builder crashed, sorry!\n\n" <> fromString (show e)
-            Right void -> absurd void
+            Right void -> absurd void)
+          False
 
-  concurrently_ builder' $
+  withAsync builder' $ const $
     case optsPort opts of
       Just port -> warp port app
       Nothing -> toWaiApp app >>= run

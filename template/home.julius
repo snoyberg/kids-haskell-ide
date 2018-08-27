@@ -11,5 +11,11 @@ cm.on('change', submit);
 submit();
 
 new EventSource("@{ResultR}").onmessage = function(e) {
-  result.innerText = JSON.parse(e.data);
+  var data = JSON.parse(e.data);
+  result.innerText = data.text;
+  if (data.success) {
+    result.classList.add("success");
+  } else {
+    result.classList.remove("success");
+  }
 };
