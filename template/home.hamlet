@@ -13,6 +13,8 @@ $doctype 5
 
     <div #outer>
       <h1 #title>#{title}
+      <p #submiterror>
+      <p #eserror>
       <p #snapshot>
         Using snapshot
         <i>#{appSnapshot app}

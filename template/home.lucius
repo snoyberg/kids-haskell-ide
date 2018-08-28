@@ -48,3 +48,16 @@ html, body {
 .CodeMirror {
   height: 100%;
 }
+
+#submiterror, #eserror {
+  display: none;
+  margin: 0;
+  padding: 0;
+}
+
+#submiterror.active, #eserror.active {
+  display: block;
+  background-color: #fee;
+  font-weight: bold;
+  text-align: center;
+}

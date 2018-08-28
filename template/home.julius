@@ -2,15 +2,31 @@ var cm = CodeMirror.fromTextArea(document.getElementById("editor"),
       { autofocus: true
       , mode: "haskell"
       }),
+    dirty = true,
+    updating = false,
+    result = document.getElementById("result"),
+    es = new EventSource("@{ResultR}"),
+    submiterror = document.getElementById("submiterror"),
+    eserror = document.getElementById("eserror"),
     submit = function() {
-               fetch("@{SubmitR}", {method: "PUT", body: cm.getValue()})
-             },
-    result = document.getElementById("result")
+               if (dirty && !updating) {
+                 updating = true;
+                 fetch("@{SubmitR}", {method: "PUT", body: cm.getValue()})
+                   .then(function() {
+                     submiterror.classList.remove("active");
+                     updating = false;
+                   }).catch(function(e) {
+                     submiterror.classList.add("active");
+                     submiterror.innerText = "Could not send your code, sorry! " + e;
+                     updating = false;
+                   })
+               }
+             }
     ;
-cm.on('change', submit);
-submit();
+cm.on('change', function() { dirty = true });
+setInterval(submit, 500);
 
-new EventSource("@{ResultR}").onmessage = function(e) {
+es.onmessage = function(e) {
   var data = JSON.parse(e.data);
   result.innerText = data.text;
   if (data.success) {
@@ -18,4 +34,13 @@ new EventSource("@{ResultR}").onmessage = function(e) {
   } else {
     result.classList.remove("success");
   }
+  eserror.classList.remove("active");
+  if (submiterror.classList.contains("active")) {
+    submit();
+  }
+};
+
+es.onerror = function() {
+  eserror.innerText = "Sorry, couldn't get information from the compiler!";
+  eserror.classList.add("active");
 };
